@@ -1,123 +1,87 @@
+module main;
 import std::io;
+import game;
+import render;
 
-extern fn char get_char() @extern("getchar");
+const int WINDOW_WIDTH  = 600;
+const int WINDOW_HEIGHT = 600;
+const int CELL_SIZE = 200;
 
-const int MAX_PLAYER = 2;
-const int BOARD_SIZE = 9;
+const int GRID_WIDTH  = 3;
+const int GRID_HEIGHT = 3;
 
-alias Board = ushort;
+const int LINE_SIZE = 10;
 
-const ushort[] VICTORY_TABLE = {
-    0x07,  // row 0,1,2
-    0x38,  // row 3,4,5
-    0x1C0, // row 6,7,8
-    0x49,  // column 0,3,6
-    0x92,  // column 1,4,7
-    0x124, // column 2,5,8
-    0x111, // diagonal 0,4,8
-    0x54   // diagonal 2,4,6
-};
+fn int get_mouse_cell_position() {
+    Vector2 mouse = render::get_mouse_position();
 
-enum Player {
-    PLAYER_ONE,
-    PLAYER_TWO
-} 
+    int cellX = (int)((mouse.x + LINE_SIZE / 2) / CELL_SIZE);
+    int cellY = (int)((mouse.y + LINE_SIZE / 2) / CELL_SIZE);
 
-enum Move {
-    MOVE_INVALID,
-    MOVE_VALID,
+    cellX = min(cellX, GRID_WIDTH - 1);
+    cellY = min(cellY, GRID_HEIGHT - 1);
+
+    int mouse_pos = cellY * GRID_WIDTH + cellX;
+
+    return mouse_pos;
 }
 
-struct Game {
-    Board[2] board;
-    Player current_player;
+
+fn void draw_board() {
+    // vertical lines
+    render::draw_line_ex(
+        render::vector2(CELL_SIZE - LINE_SIZE / 2, 0),
+        render::vector2(CELL_SIZE - LINE_SIZE / 2, CELL_SIZE * GRID_HEIGHT),
+        LINE_SIZE,
+        render::WHITE
+    );
+
+    render::draw_line_ex(
+        render::vector2(CELL_SIZE * 2 - LINE_SIZE / 2, 0),
+        render::vector2(CELL_SIZE * 2 - LINE_SIZE / 2, CELL_SIZE * GRID_HEIGHT),
+        LINE_SIZE,
+        render::WHITE
+    );
+
+    // horizontal lines
+    render::draw_line_ex(
+        render::vector2(0, CELL_SIZE - LINE_SIZE / 2),
+        render::vector2(CELL_SIZE * GRID_WIDTH, CELL_SIZE - LINE_SIZE / 2),
+        LINE_SIZE,
+        render::WHITE
+    );
+
+    render::draw_line_ex(
+        render::vector2(0, CELL_SIZE * 2 - LINE_SIZE / 2),
+        render::vector2(CELL_SIZE * GRID_WIDTH, CELL_SIZE * 2 - LINE_SIZE / 2),
+        LINE_SIZE,
+        render::WHITE
+    );
 }
 
-fn void Game.next_player(Game* self) {
-    self.current_player = (Player) (1 - self.current_player.ordinal);
+
+fn void draw() {
+   draw_board();
 }
 
-fn void Board.set_bit(Board* self, ushort pos) {
-    assert(pos < BOARD_SIZE);
-    *self |= (1ull << pos);
+fn void update() {
+   if (render::is_mouse_button_pressed(render::MOUSE_LEFT_BUTTON)) {
+      int mouse = get_mouse_cell_position();
+   }
 }
 
-fn void Board.clear_bit(Board* self, ushort pos) {
-    assert(pos < BOARD_SIZE);
-    *self &= ~(1ull << pos);
+fn int main() {
+   render::init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "Tic Tac Toe");
+   render::set_target_fps(60);
+   while (!render::window_should_close()) {
+      render::begin_drawing();
+      render::clear_background(render::SKYBLUE);
+      
+      draw();
+      update();
+            
+      render::end_drawing();
+   }
+   render::close_window();
+   return 0;
 }
-
-fn bool Board.test_bit(Board self, ushort pos) {
-    assert(pos < BOARD_SIZE);
-    return (bool) ((self >> pos ) & 1);
-}
-
-fn Move Game.make_move(Game *self, ushort pos, Player player) {
-    int this_player = player.ordinal;
-    int other = 1 - self.current_player.ordinal;
-    if (
-        player == self.current_player
-        && !self.board[this_player].test_bit(pos)
-        && !self.board[other].test_bit(pos)
-        ) {
-        self.board[this_player].set_bit(pos);
-        self.next_player();
-        return Move.MOVE_VALID;
-    }
-    return Move.MOVE_INVALID;
-}
-
-fn void Game.print(Game* self) {
-    for (ushort i = 0; i < BOARD_SIZE; i++) {
-        if (self.board[0].test_bit(i)) {
-            io::printf("X ");
-        }
-        else if (self.board[1].test_bit(i)) {
-             io::printf("O ");
-        }
-        else {
-            io::printf(". ");
-        } 
-
-        if ((i + 1) % 3 == 0) {
-            io::printf("\n");
-        } 
-    }
-}
-
-fn int Game.check_winner(Game* self) {
-    for (int player = 0; player < MAX_PLAYER; player++) {
-        for (int i = 0; i < 8; i++) {
-            if ((self.board[player] & VICTORY_TABLE[i]) == VICTORY_TABLE[i]) {
-                return player;
-            }
-        }
-    }
-    return -1;
-}
-
-fn void main() {
-    Game game;
-    int winner;
-
-    for (ushort i = 0; i < BOARD_SIZE; i ++) {
-        ushort jogada_pos;
-        Move move_status;
-
-        do {
-            io::printf("Jogador %d: ", game.current_player.ordinal);
-            char c = get_char();
-            if (c < '0' || c > '8') continue; // posição válida 0-8
-            jogada_pos = (ushort)(c - '0');
-            move_status = game.make_move(jogada_pos, game.current_player);
-        } while (move_status == Move.MOVE_INVALID);
-
-        game.print();
-        winner = game.check_winner();
-        if (winner != -1) {
-            io::printf("O jogador eh o player %d", winner);
-            break;
-        }
-    }
-}
-
